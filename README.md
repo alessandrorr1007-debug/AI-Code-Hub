@@ -8,6 +8,8 @@
 - **Abrir carpetas locales** mediante el diálogo nativo de Windows y detectar de forma no destructiva Android/Gradle, web, Tauri y Python.
 - Mostrar un mapa inicial de carpetas y archivos, y un diagnóstico estructural básico (sin ejecutar scripts).
 - Guardar **notas de trabajo**, reglas, decisiones, tareas y enlaces/capturas de referencia por proyecto.
+- SQLite local en Windows con migración inicial de datos de la WebView y respaldo JSON.
+- Preparar y copiar un resumen de contexto por proyecto (económico, equilibrado o profundo), sin realizar solicitudes a proveedores.
 - Gestionar el perfil de rendimiento: **Económico** o **Equilibrado**.
 - Exportar un respaldo local del estado del Hub en JSON.
 - Filtrar los proyectos Android dentro de **Instaladores**. Los proyectos web no aparecen ahí.
@@ -16,8 +18,8 @@
 ## Lo que no está integrado todavía
 
 - Autenticación y ejecución de Codex, Gemini/Antigravity y OpenCode.
-- Traspaso de contexto real entre agentes, resumen automático y medición de tokens.
-- SQLite: la Fase 1 utiliza almacenamiento local de la WebView para registros de interfaz; no incluye secretos.
+- Traspaso automático de contexto entre agentes y medición real de tokens del proveedor (el generador local ofrece aproximaciones).
+- Indexación inteligente del contenido del código, búsqueda semántica y deduplicación avanzada (SQLite actualmente guarda un estado JSON versionado).
 - Compilación de proyectos, comandos ADB, instalación/actualización APK en teléfonos.
 - Ejecución programada de automatizaciones, Git commits, restauraciones y pruebas reales.
 - Análisis automatizado de imágenes, sitios web o publicaciones de Instagram.
@@ -72,11 +74,13 @@ src/
   sections.tsx        # 11 vistas con acciones locales reales o límites explícitos
   styles.css          # Diseño compartido compacto / modo ligero
   types.ts            # Contratos y tipado
-  storage.ts          # Persistencia local versionada de Fase 1
+  storage.ts          # SQLite en Tauri, migración y respaldo WebView
   desktop.ts          # Adaptadores de diálogo Tauri
+  context.ts          # Preparador local de contexto selectivo
 src-tauri/
   src/projects.rs     # Inspección de carpetas (solo lectura)
   src/lib.rs          # Registro de comandos y plugin oficial de diálogos
+  src/state.rs        # Lectura y guardado de memoria SQLite
   capabilities/       # Permisos mínimos
   icons/              # Iconos Windows
 docs/
@@ -93,6 +97,14 @@ docs/
 - Las rutas locales se registran solo después de la selección del usuario.
 - La inspección excluye `.git`, `node_modules`, carpetas de compilación y virtualenvs; el escaneo está limitado en profundidad y cantidad.
 - No se inician agentes, modelos ni indexaciones pesadas mientras no sean necesarios.
-- En esta fase, exporta copias si trabajas con información importante: aún no existe la migración a SQLite.
+- Exporta copias si trabajas con información importante: SQLite está implementado en Windows, pero todavía no tiene una estrategia de respaldo automático completo.
 
 Consulta [docs/ROADMAP.md](docs/ROADMAP.md) para las próximas etapas.
+
+## Modo de memoria eficiente (en desarrollo)
+
+En **Memoria** puedes registrar decisiones, reglas críticas y tareas. La herramienta **Preparar contexto** selecciona recuerdos, tareas y rutas de archivos relevantes y permite copiar el resumen al portapapeles. Los modos económico, equilibrado y profundo limitan el número de elementos adicionales, pero **nunca excluyen reglas críticas**. Esta función no envía prompts a Codex, Gemini u OpenCode y sus estimaciones de tokens no representan cuotas reales.
+
+La base de escritorio utiliza SQLite dentro del directorio privado de datos de Tauri. La primera vez se importa el antiguo estado local de la WebView si la base todavía no existe. La vista web mantiene su almacenamiento local de desarrollo.
+
+Pruebas locales del algoritmo: `npm test`. **No se necesitan GitHub Actions.**

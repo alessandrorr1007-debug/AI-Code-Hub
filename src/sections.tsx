@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { prepareContext, type ContextMode } from "./context";
 import type { ReactNode } from "react";
 import {
   House, FolderOpen, FolderPlus, MessageSquare, Sparkles, Brain, Network,
@@ -85,6 +86,8 @@ export function WorkspaceView(props: Props) {
   const [referenceDraft, setReferenceDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
   const [automationDraft, setAutomationDraft] = useState("");
+  const [contextMode, setContextMode] = useState<ContextMode>("equilibrado");
+  const [contextRequest, setContextRequest] = useState("");
   const [installId, setInstallId] = useState("");
   const selectedId = project?.id || "";
   const memories = data.memories.filter(x => x.projectId === selectedId);
@@ -94,6 +97,15 @@ export function WorkspaceView(props: Props) {
   const activities = data.activities.filter(x => x.projectId === selectedId);
   const allInstallable = data.projects.filter(p => p.kind === "android");
   const installProject = allInstallable.find(p => p.id === installId) || allInstallable.find(p => p.id === selectedId) || allInstallable[0];
+  const preparedContext = project ? prepareContext(data, project, contextRequest || chatDraft, contextMode) : null;
+  async function copyContext(request: string) {
+    if (!project) { showNotice("Primero selecciona un proyecto."); return; }
+    const generated = prepareContext(data, project, request, contextMode);
+    try {
+      await navigator.clipboard.writeText(generated.text);
+      showNotice("Contexto local copiado. Puedes pegarlo en tu asistente sin repetir todo el historial.");
+    } catch { showNotice("No se pudo copiar automáticamente. Selecciona el texto del panel y cópialo manualmente."); }
+  }
   const checkProject = (children: ReactNode) => project ? children : <Empty title="Selecciona un proyecto" message="Abre una carpeta local desde Proyectos para activar esta sección." button={<Action icon={FolderPlus} onClick={addProject}>Abrir carpeta local</Action>}/>;
 
   let main: ReactNode = null;
@@ -185,6 +197,21 @@ export function WorkspaceView(props: Props) {
           {(["Codex","Gemini","OpenCode"] as Agent[]).map(name => <button key={name} className={`agent-card ${agent === name ? "active" : ""}`} onClick={() => setAgent(name)}><Code2 size={20}/><strong>{name}</strong><small>Conexión pendiente</small></button>)}
         </div>
         {checkProject(<>
+          <details className="context-details">
+            <summary><Leaf size={17}/> Preparar contexto para ahorrar tokens <span className="tag">Modo {contextMode}</span></summary>
+            <div className="context-body">
+              <div className="input-row context-controls">
+                <label>Contexto
+                  <select value={contextMode} onChange={e => setContextMode(e.target.value as ContextMode)}>
+                    <option value="economico">Económico</option><option value="equilibrado">Equilibrado</option><option value="profundo">Profundo</option>
+                  </select>
+                </label>
+                <span className="muted">Estimado de entrada: ≈ {project ? prepareContext(data, project, chatDraft, contextMode).approxTokens : 0} tokens · sin enviar a la IA</span>
+                <Action secondary icon={Copy} onClick={() => copyContext(chatDraft)} disabled={!project}>Copiar contexto</Action>
+              </div>
+              <p className="muted">Selecciona solo recuerdos, tareas y rutas relevantes; conserva todas las reglas críticas del proyecto.</p>
+            </div>
+          </details>
           <Pane title="Sesión de trabajo (notas locales)" icon={BookOpen} className="conversation-panel">
             {messages.length ? [...messages].reverse().map(m => <div className="chat-bubble" key={m.id}><div className="chat-label"><strong>Tu instrucción</strong><small>{m.agent} · {at(m.createdAt)}</small></div><p>{m.text}</p></div>) : <div className="chat-onboarding"><MessageSquare size={28}/><h3>Prepara tu próxima tarea</h3><p>Las instrucciones se guardan localmente; no se envían a ningún modelo hasta configurar las conexiones oficiales.</p></div>}
           </Pane>
@@ -245,11 +272,42 @@ export function WorkspaceView(props: Props) {
           <Pane title="Recuerdos guardados" icon={BookOpen}>
             {memories.length ? memories.map(m => <div className="memory-row" key={m.id}><span className="tag">{m.kind}</span><span className="grow">{m.text}</span><small>{at(m.createdAt)}</small><button className="icon-button danger" onClick={() => deleteMemory(m.id)} title="Eliminar recuerdo"><Trash2 size={16}/></button></div>) : <div className="small-empty">Todavía no hay recuerdos. Guarda una regla o decisión del proyecto.</div>}
           </Pane>
+          <Pane title="Tareas pendientes" icon={ListTodo}>
+            <form className="input-row" onSubmit={e => { e.preventDefault(); if(taskDraft.trim()){addTask(taskDraft); setTaskDraft("");}}}>
+              <input aria-label="Nueva tarea" placeholder="Ejemplo: Probar notificaciones en Android" value={taskDraft} onChange={e => setTaskDraft(e.target.value)}/>
+              <Action icon={Plus} disabled={!taskDraft.trim()}>Agregar</Action>
+            </form>
+            <div className="task-items">
+              {tasks.length ? tasks.map(task => <label className="task-item" key={task.id}>
+                <input type="checkbox" checked={task.completed} onChange={() => toggleTask(task.id)}/>
+                <span className={task.completed ? "task-done" : ""}>{task.text}</span>
+              </label>) : <p className="muted">No se han registrado tareas para este proyecto.</p>}
+            </div>
+          </Pane>
+          <Pane title="Preparar contexto optimizado" icon={Leaf}>
+            <div className="input-row">
+              <input aria-label="Qué quieres hacer" placeholder="Describe qué quieres mejorar o continuar..." value={contextRequest} onChange={e => setContextRequest(e.target.value)}/>
+              <select aria-label="Nivel de contexto" value={contextMode} onChange={e => setContextMode(e.target.value as ContextMode)}>
+                <option value="economico">Económico</option><option value="equilibrado">Equilibrado</option><option value="profundo">Profundo</option>
+              </select>
+            </div>
+            {preparedContext && <>
+              <div className="context-summary">
+                <span>≈ {preparedContext.approxTokens} tokens de entrada <small>(estimación por caracteres)</small></span>
+                <span>{preparedContext.included.rules} reglas · {preparedContext.included.memories} recuerdos · {preparedContext.included.files} rutas</span>
+              </div>
+              <details className="context-output"><summary>Ver contexto preparado</summary>
+                <textarea readOnly rows={11} value={preparedContext.text} aria-label="Contexto generado"/>
+              </details>
+              <div className="button-row"><Action icon={Copy} onClick={() => copyContext(contextRequest)}>Copiar contexto</Action></div>
+              {preparedContext.warnings.map(w => <p className="muted" key={w}><Info size={13} className="inline-icon"/> {w}</p>)}
+            </>}
+          </Pane>
         </>)}
       </>;
       inspector = <>
-        <Pane title="Ahorro de contexto" icon={Leaf}><p>Modo <b>{data.settings.performance === "eco" ? "económico" : "equilibrado"}</b></p><p className="muted">En fases posteriores, el motor recuperará solo los recuerdos y archivos relevantes. No se muestran porcentajes de ahorro sin medición real.</p></Pane>
-        <Pane title="Almacenamiento" icon={Database}><p className="muted">Fase 1: datos del Hub en el almacenamiento local de la WebView. La migración a SQLite se hará en Fase 2.</p><Action secondary icon={Download} onClick={exportData}>Exportar respaldo</Action></Pane>
+        <Pane title="Ahorro de contexto" icon={Leaf}><p>Modo <b>{contextMode}</b></p><p className="muted">El selector funciona localmente y no consume tokens de ningún proveedor. La cifra mostrada es una aproximación, no un contador de cuota real.</p></Pane>
+        <Pane title="Almacenamiento" icon={Database}><p className="muted">En la versión de escritorio, la base SQLite es local y los datos previos se migran la primera vez. En la vista web se conserva un almacenamiento local separado.</p><Action secondary icon={Download} onClick={exportData}>Exportar respaldo</Action></Pane>
         <Pane title="Reglas vigentes" icon={ShieldCheck}><strong>{memories.filter(m => m.kind === "regla").length} reglas registradas</strong><p className="muted">Las reglas se mantendrán separadas de notas pasajeras.</p></Pane>
       </>;
       break;

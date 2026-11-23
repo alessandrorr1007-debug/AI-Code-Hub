@@ -8,7 +8,7 @@ import {
 import type {
   Section, Agent, HubData, Project, ProjectInfo, MemoryKind, PerformanceMode
 } from "./types";
-import { loadWorkspace, saveWorkspace, exportWorkspace } from "./storage";
+import { loadWorkspace, initializeWorkspace, persistWorkspace, exportWorkspace } from "./storage";
 import { pickProjectFolder, refreshProjectFolder, pickReferenceFile, isDesktop } from "./desktop";
 import { WorkspaceView } from "./sections";
 
@@ -25,6 +25,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 
 export default function App() {
   const [data, setData] = useState<HubData>(loadWorkspace);
+  const [hydrated, setHydrated] = useState<boolean>(!isDesktop());
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem("ai-code-hub:selected") || "");
   const [section, setSection] = useState<Section>("Inicio");
   const [agent, setAgent] = useState<Agent>("Codex");
@@ -35,9 +36,29 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const project = useMemo(() => data.projects.find(p => p.id === activeId) || null, [data.projects, activeId]);
   useEffect(() => {
-    try { saveWorkspace(data); }
-    catch { setNotice("No fue posible guardar la información local. Exporta una copia desde Ajustes."); }
-  }, [data]);
+    if (!isDesktop()) return;
+    let cancelled = false;
+    initializeWorkspace()
+      .then(workspace => {
+        if (cancelled) return;
+        setData(workspace);
+        setHydrated(true);
+      })
+      .catch(error => {
+        if (!cancelled) setNotice("No se pudo abrir la memoria SQLite: " + message(error));
+      });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    // Debounce disk writes while typing to keep laptops with slow disks responsive.
+    const timer = window.setTimeout(() => {
+      persistWorkspace(data).catch(error =>
+        setNotice("Error guardando la memoria: " + message(error) + ". Exporta una copia en Ajustes.")
+      );
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [data, hydrated]);
   useEffect(() => { localStorage.setItem("ai-code-hub:selected", activeId); }, [activeId]);
   useEffect(() => {
     document.documentElement.dataset.mode = data.settings.performance;
@@ -142,6 +163,8 @@ export default function App() {
     catch (error) { setNotice(message(error)); }
   }
   const go = (next: Section) => { setSection(next); setNavOpen(false); setQuery(""); };
+
+  if (!hydrated) return <div className="startup"><Brain size={30}/><strong>AI Code Hub</strong><p>Preparando la memoria local protegida...</p><p className="muted">Si hay un error, se mostrará el mensaje sin sobrescribir tus datos.</p>{notice && <p className="startup-error">{notice}</p>}</div>;
 
   return (
     <div className="app-shell">

@@ -284,3 +284,36 @@ kbd{border:1px solid #303b59;background:#222c43;border-radius:5px;color:#9ba8c7;
  .file-grid{grid-template-columns:1fr}
  .composer-footer{flex-direction:column;align-items:flex-start}
 }
+
+/* Contexto local: compacto y sin animaciones continuas */
+.context-details{border:1px solid var(--line);background:#172039;border-radius:11px;overflow:hidden}
+.context-details summary{display:flex;align-items:center;gap:9px;cursor:pointer;padding:12px 14px;font-size:12px;font-weight:700}
+.context-details summary svg{color:#42d696}
+.context-details summary .tag{margin-left:auto}
+.context-details[open] summary{border-bottom:1px solid var(--line)}
+.context-body{padding:11px 14px}
+.context-controls{justify-content:space-between;flex-wrap:wrap}
+.context-controls label{display:flex;align-items:center;gap:9px;color:#bac7dc;font-size:11px}
+.context-controls select{max-width:140px;padding:8px 10px}
+.context-summary{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:12px 0 8px;padding:11px;border-radius:9px;background:#232a49;font-size:11px}
+.context-summary span{display:block}
+.context-summary small{font-size:10px;color:var(--muted)}
+.context-output{margin-bottom:10px}
+.context-output summary{padding:9px 4px;cursor:pointer;font-size:12px}
+.context-output textarea{resize:vertical;width:100%;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.5}
+.inline-icon{display:inline-block;vertical-align:middle}
+.task-items{display:flex;flex-direction:column;gap:0;margin-top:12px}
+.task-item{display:flex;align-items:center;gap:11px;padding:10px 2px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:12px}
+.task-item:last-child{border-bottom:0}
+.task-item input{height:16px;width:16px;flex:none;accent-color:#7854f8}
+.task-done{text-decoration:line-through;color:var(--muted)}
+.startup{height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;background:var(--bg);color:var(--text);padding:30px}
+.startup>svg{color:#9b8aff}
+.startup strong{font-size:22px}
+.startup p{margin:0;font-size:12px}
+.startup-error{color:#ffc384;max-width:600px}
+@media(max-width:700px){
+  .context-controls{align-items:stretch}
+  .context-controls label{flex-wrap:wrap}
+  .context-controls .btn{width:100%}
+}
