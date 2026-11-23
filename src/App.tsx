@@ -51,13 +51,11 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!hydrated) return;
-    // Debounce disk writes while typing to keep laptops with slow disks responsive.
-    const timer = window.setTimeout(() => {
-      persistWorkspace(data).catch(error =>
-        setNotice("Error guardando la memoria: " + message(error) + ". Exporta una copia en Ajustes.")
-      );
-    }, 320);
-    return () => window.clearTimeout(timer);
+    // Cambios de workspace son discretos (los borradores de formularios no modifican data).
+    // Guardar sin espera evita perder notas al cerrar la ventana inmediatamente.
+    persistWorkspace(data).catch(error =>
+      setNotice("Error guardando la memoria: " + message(error) + ". Exporta una copia en Ajustes.")
+    );
   }, [data, hydrated]);
   useEffect(() => { localStorage.setItem("ai-code-hub:selected", activeId); }, [activeId]);
   useEffect(() => {

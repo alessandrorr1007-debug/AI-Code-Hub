@@ -58,8 +58,15 @@ export async function initializeWorkspace(): Promise<HubData> {
   await invoke("save_workspace", { data: JSON.stringify(legacy) });
   return legacy;
 }
+let sqliteWriteQueue: Promise<void> = Promise.resolve();
 export async function persistWorkspace(data: HubData): Promise<void> {
-  if (isTauri()) await invoke("save_workspace", { data: JSON.stringify(data) });
-  // A local-only emergency backup also keeps browser previews usable.
+  if (isTauri()) {
+    const payload = JSON.stringify(data);
+    // Mantener el orden de escrituras cuando el usuario hace varios cambios seguidos.
+    sqliteWriteQueue = sqliteWriteQueue.catch(() => undefined)
+      .then(() => invoke<void>("save_workspace", { data: payload }));
+    await sqliteWriteQueue;
+  }
+  // Una copia local para migraciones y recuperación, nunca subida a Git.
   saveWorkspace(data);
 }
