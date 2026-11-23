@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  House, FolderOpen, MessageSquare, Sparkles, Brain, Network, Activity, History,
+  FolderOpen, MessageSquare, Sparkles, Brain, Network, Activity, History,
   Smartphone, Workflow, Settings, Search, ChevronDown, Menu, Code2, Github,
   Monitor, PanelRightClose, PanelRightOpen, Leaf, ShieldCheck, CircleHelp, Bell,
   FolderPlus, Download, Info, Zap, X
@@ -8,13 +8,13 @@ import {
 import type {
   Section, Agent, HubData, Project, ProjectInfo, MemoryKind, PerformanceMode
 } from "./types";
-import { loadWorkspace, saveWorkspace, exportWorkspace } from "./storage";
+import { loadWorkspace, initializeWorkspace, persistWorkspace, exportWorkspace } from "./storage";
 import { pickProjectFolder, refreshProjectFolder, pickReferenceFile, isDesktop } from "./desktop";
 import { WorkspaceView } from "./sections";
+import { AssistantPanel, type AssistantTab } from "./AssistantPanel";
 
-const NAV: { title: Section; icon: typeof House }[] = [
-  { title: "Inicio", icon: House }, { title: "Proyectos", icon: FolderOpen },
-  { title: "Chat IA", icon: MessageSquare }, { title: "Estudio Creativo", icon: Sparkles },
+const NAV: { title: Section; icon: typeof FolderOpen }[] = [
+  { title: "Proyectos", icon: FolderOpen }, { title: "Estudio Creativo", icon: Sparkles },
   { title: "Memoria", icon: Brain }, { title: "Mapa", icon: Network },
   { title: "Diagnóstico", icon: Activity }, { title: "Versiones", icon: History },
   { title: "Instaladores", icon: Smartphone }, { title: "Automatizaciones", icon: Workflow },
@@ -25,19 +25,39 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 
 export default function App() {
   const [data, setData] = useState<HubData>(loadWorkspace);
+  const [hydrated, setHydrated] = useState<boolean>(!isDesktop());
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem("ai-code-hub:selected") || "");
-  const [section, setSection] = useState<Section>("Inicio");
+  const [section, setSection] = useState<Section>("Proyectos");
   const [agent, setAgent] = useState<Agent>("Codex");
   const [rightPanel, setRightPanel] = useState(true);
+  const [assistantTab, setAssistantTab] = useState<AssistantTab>("ia");
   const [navOpen, setNavOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const project = useMemo(() => data.projects.find(p => p.id === activeId) || null, [data.projects, activeId]);
   useEffect(() => {
-    try { saveWorkspace(data); }
-    catch { setNotice("No fue posible guardar la información local. Exporta una copia desde Ajustes."); }
-  }, [data]);
+    if (!isDesktop()) return;
+    let cancelled = false;
+    initializeWorkspace()
+      .then(workspace => {
+        if (cancelled) return;
+        setData(workspace);
+        setHydrated(true);
+      })
+      .catch(error => {
+        if (!cancelled) setNotice("No se pudo abrir la memoria SQLite: " + message(error));
+      });
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    // Cambios de workspace son discretos (los borradores de formularios no modifican data).
+    // Guardar sin espera evita perder notas al cerrar la ventana inmediatamente.
+    persistWorkspace(data).catch(error =>
+      setNotice("Error guardando la memoria: " + message(error) + ". Exporta una copia en Ajustes.")
+    );
+  }, [data, hydrated]);
   useEffect(() => { localStorage.setItem("ai-code-hub:selected", activeId); }, [activeId]);
   useEffect(() => {
     document.documentElement.dataset.mode = data.settings.performance;
@@ -142,6 +162,9 @@ export default function App() {
     catch (error) { setNotice(message(error)); }
   }
   const go = (next: Section) => { setSection(next); setNavOpen(false); setQuery(""); };
+  const openAssistant = (tab: AssistantTab = "ia") => { setAssistantTab(tab); setRightPanel(true); };
+
+  if (!hydrated) return <div className="startup"><Brain size={30}/><strong>AI Code Hub</strong><p>Preparando la memoria local protegida...</p><p className="muted">Si hay un error, se mostrará el mensaje sin sobrescribir tus datos.</p>{notice && <p className="startup-error">{notice}</p>}</div>;
 
   return (
     <div className="app-shell">
@@ -169,10 +192,8 @@ export default function App() {
             </select><ChevronDown size={13}/>
           </div>
           <label className="top-search"><Search size={18}/><input aria-label="Buscar proyectos" value={query} placeholder="Buscar proyectos..." onFocus={() => setSection("Proyectos")} onChange={e => setQuery(e.target.value)}/><kbd>Ctrl K</kbd></label>
-          <div className="agent-switch" role="group" aria-label="Asistente seleccionado">
-            {(["Codex","Gemini","OpenCode"] as Agent[]).map(item =>
-              <button key={item} className={agent === item ? "selected" : ""} onClick={() => setAgent(item)} title="Selección preparada; conexión pendiente">{item}</button>)}
-          </div>
+          <button className="top-assistant-btn" onClick={() => openAssistant("ia")}
+            title="Abrir asistente de programación"><MessageSquare size={17}/> Asistente IA <span>{agent}</span></button>
           <button className="icon-button panel-toggle" onClick={() => setRightPanel(!rightPanel)} aria-label={rightPanel ? "Ocultar panel contextual" : "Mostrar panel contextual"}>{rightPanel ? <PanelRightClose size={19}/> : <PanelRightOpen size={19}/>}</button>
           <button className="icon-button" onClick={() => go("Ajustes")} aria-label="Ajustes"><Settings size={19}/></button>
         </header>
@@ -186,8 +207,13 @@ export default function App() {
             addReference={addReference} addReferenceFile={addReferenceFile} deleteReference={deleteReference}
             addTask={addTask} toggleTask={toggleTask} addMessage={addMessage}
             addAutomation={addAutomation} changeSettings={changeSettings}
-            exportData={exportData} showNotice={setNotice} rightPanel={rightPanel}
+            exportData={exportData} showNotice={setNotice} openAssistant={openAssistant}
           />
+          {rightPanel && <AssistantPanel project={project} data={data} agent={agent}
+            setAgent={setAgent} tab={assistantTab} setTab={setAssistantTab}
+            onClose={() => setRightPanel(false)} onSaveInstruction={addMessage}
+            navigate={go} notify={setNotice}/>}
+
         </div>
         <footer className="statusbar"><span><span className="status-dot"/> {isDesktop() ? "Aplicación de escritorio" : "Vista web de desarrollo"}</span><span><Github size={14}/> Repositorio preparado</span><span className="status-right"><Monitor size={14}/> {data.settings.performance === "eco" ? "Económico" : "Equilibrado"} <span className="subtle">· IA sin conectar</span></span></footer>
       </div>

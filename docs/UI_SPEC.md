@@ -1,32 +1,36 @@
-# Contrato de diseño: 11 vistas coherentes
+# Contrato UI: 9 secciones y asistente a la derecha
 
-**Regla principal:** el menú izquierdo, la barra superior, la selección de proyecto, la paleta y las proporciones nunca cambian al navegar. Solo cambia el área central y el contenido del inspector derecho opcional.
+**Aplicación personal**, orientada al trabajo local en Windows. Conservar el mismo marco en cada vista, sin Inicio ni sección Chat IA.
+
+## Estructura invariable
+- Izquierda: navegación fija con exactamente 9 apartados: **Proyectos**, **Estudio Creativo**, **Memoria**, **Mapa**, **Diagnóstico**, **Versiones**, **Instaladores**, **Automatizaciones** y **Ajustes**.
+- Centro: contenido específico de la sección. Pantalla inicial: **Proyectos**. Al seleccionar un proyecto aparece una banda «Proyecto activo», acceso al asistente y botón de contexto.
+- Derecha: panel **Asistente IA** persistente y ocultable, pestañas **IA** y **Contexto**, conservadas al navegar entre secciones.
+- Barra superior: selector de proyecto, búsqueda, botón **Asistente IA**, control para ocultar/mostrar panel y Ajustes. No duplicar selector de agente en la barra.
+- El panel lateral puede ocultarse y en resoluciones pequeñas se muestra superpuesto, accesible mediante el botón superior. No debe impedir la navegación izquierda.
+
+## Panel Asistente IA
+### Pestaña IA
+- Selector: Codex / Gemini / OpenCode.
+- Indicar siempre **Conexión pendiente** mientras no haya integración oficial.
+- Mostrar instrucciones guardadas **solo del proyecto seleccionado**.
+- Redactar una instrucción y **Guardar nota** sin enviarla a un modelo.
+- Acción **Copiar contexto**, sin llamadas remotas ni consumo de tokens.
+- Sin proyecto seleccionado, mostrar acceso a Proyectos.
+
+### Pestaña Contexto
+- Resumen de recuerdos, tareas y archivos locales.
+- Modos económico, equilibrado y profundo; preservar reglas críticas.
+- Vista previa en texto y botón **Copiar contexto**.
+- Las cifras son **estimaciones**, nunca cuotas reales de proveedores.
+- Acceso a Memoria para administrar reglas, notas y pendientes.
 
 ## Diseño visual
-- Fondo: azul marino/negro (por ejemplo `#090d19`).
-- Superficies: `#121a2d` y `#172039`.
-- Acentos: morado `#7854f8` y azul `#5168ff`; estados verdes solo cuando se verifican.
-- Contenido compacto y legible, sin sombras/animaciones costosas.
-- Sin terminal en pantalla; código opcional, no protagonista.
-- Tipografía del sistema, sin descargar fuentes externas.
-- Sidebar 244px aprox., header 65px, inspector 315px si hay espacio; inspector ocultable y colapsable en laptop pequeña.
+- Fondo oscuro `#090d19` y superficies `#121a2d` / `#172039`.
+- Acentos `#7854f8` y `#5168ff`; colores de estado solo cuando sean verificables.
+- Sidebar 244px aprox., barra superior 65px, panel asistente 365px en pantallas amplias.
+- Interfaces compactas, sin animaciones continuas, sin modelos locales pesados ni terminal visible.
+- El aspecto exacto se comprobará visualmente cuando la app se ejecute en Windows; imágenes generadas son conceptuales.
 
-## Secciones
-| Vista | Contenido central | Panel contextual |
-|---|---|---|
-| Inicio | Continuar proyecto, métricas locales, recientes, accesos rápidos | Estado y actividad |
-| Proyectos | Abrir carpeta, proyectos reales, filtros, clasificación | Proyecto seleccionado |
-| Chat IA | Selector Codex/Gemini/OpenCode, instrucciones guardadas | Estado de agente y contexto |
-| Estudio Creativo | Guardar enlaces y capturas, futura extracción visual | Etapas del análisis |
-| Memoria | Decisiones, reglas, contexto, tareas, exportación | Ahorro de contexto y privacidad |
-| Mapa | Carpetas y archivos reales, módulos para próxima fase | Tipo y tecnología detectados |
-| Diagnóstico | Verificaciones no destructivas, resultados comprobables | Estado y recomendaciones |
-| Versiones | Eventos locales, futura comparación Git | Seguridad y restauración |
-| Instaladores | Solo proyectos Android; futuro instalar/actualizar | Compatibilidad de dispositivo |
-| Automatizaciones | Flujos en borrador | Estado del motor local |
-| Ajustes | Rendimiento, apariencia, exportar datos | Información del programa |
-
-## Implementación progresiva
-Primero funcionamiento local verificable; luego persistencia robusta, conexiones oficiales de IA, análisis multimodal y ADB. Nunca mostrar métricas inventadas, conexiones simuladas como activas ni botones que indiquen acciones que no realizan.
-
-Las capturas visuales de planificación compartidas en conversación son la guía de estilo; no se incluyen como archivos binarios en este primer commit.
+## Principio funcional
+No mostrar como conectadas las IA ni operaciones como instalar APK, ejecutar automatizaciones o restaurar Git mientras sus servicios no existan. No modificar archivos del proyecto sin autorización. Nunca subir datos SQLite ni credenciales a GitHub.

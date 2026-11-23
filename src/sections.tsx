@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { prepareContext, type ContextMode } from "./context";
 import type { ReactNode } from "react";
 import {
   House, FolderOpen, FolderPlus, MessageSquare, Sparkles, Brain, Network,
@@ -23,7 +24,7 @@ interface Props {
   query: string;
   busy: boolean;
   desktop: boolean;
-  rightPanel: boolean;
+  openAssistant: (tab?: "ia" | "contexto") => void;
   navigate: (section: Section) => void;
   setAgent: (agent: Agent) => void;
   selectProject: (id: string) => void;
@@ -74,17 +75,18 @@ const displayName = (value: string) => value.replace(/\\/g,"/").split("/").pop()
 
 export function WorkspaceView(props: Props) {
   const {
-    section, data, project, agent, query, busy, desktop, rightPanel,
+    section, data, project, agent, query, busy, desktop, openAssistant,
     navigate, setAgent, selectProject, addProject, refreshProject, deleteProject,
     addMemory, deleteMemory, addReference, addReferenceFile, deleteReference,
     addTask, toggleTask, addMessage, addAutomation, changeSettings, exportData, showNotice
   } = props;
-  const [chatDraft, setChatDraft] = useState("");
   const [memoryDraft, setMemoryDraft] = useState("");
   const [memoryType, setMemoryType] = useState<MemoryKind>("decision");
   const [referenceDraft, setReferenceDraft] = useState("");
   const [taskDraft, setTaskDraft] = useState("");
   const [automationDraft, setAutomationDraft] = useState("");
+  const [contextMode, setContextMode] = useState<ContextMode>("equilibrado");
+  const [contextRequest, setContextRequest] = useState("");
   const [installId, setInstallId] = useState("");
   const selectedId = project?.id || "";
   const memories = data.memories.filter(x => x.projectId === selectedId);
@@ -94,65 +96,34 @@ export function WorkspaceView(props: Props) {
   const activities = data.activities.filter(x => x.projectId === selectedId);
   const allInstallable = data.projects.filter(p => p.kind === "android");
   const installProject = allInstallable.find(p => p.id === installId) || allInstallable.find(p => p.id === selectedId) || allInstallable[0];
+  const preparedContext = project ? prepareContext(data, project, contextRequest, contextMode) : null;
+  async function copyContext(request: string) {
+    if (!project) { showNotice("Primero selecciona un proyecto."); return; }
+    const generated = prepareContext(data, project, request, contextMode);
+    try {
+      await navigator.clipboard.writeText(generated.text);
+      showNotice("Contexto local copiado. Puedes pegarlo en tu asistente sin repetir todo el historial.");
+    } catch { showNotice("No se pudo copiar automáticamente. Selecciona el texto del panel y cópialo manualmente."); }
+  }
   const checkProject = (children: ReactNode) => project ? children : <Empty title="Selecciona un proyecto" message="Abre una carpeta local desde Proyectos para activar esta sección." button={<Action icon={FolderPlus} onClick={addProject}>Abrir carpeta local</Action>}/>;
 
   let main: ReactNode = null;
-  let inspector: ReactNode = null;
 
   switch (section) {
-    case "Inicio":
-      main = <>
-        <div className="hero">
-          <span className="eyebrow"><Sparkles size={16}/> ESPACIO DE TRABAJO</span>
-          <h1>Tu desarrollo, en un solo lugar.</h1>
-          <p>Organiza proyectos, conserva decisiones y prepara tus tareas sin repetir contexto.</p>
-          <div className="button-row">
-            <Action icon={FolderPlus} onClick={addProject}>Abrir proyecto</Action>
-            <Action icon={Sparkles} secondary onClick={() => navigate("Estudio Creativo")}>Estudio Creativo</Action>
-            <Action icon={MessageSquare} secondary onClick={() => navigate("Chat IA")}>Ir al chat</Action>
-          </div>
-        </div>
-        <div className="stats-grid">
-          <Stat icon={FolderOpen} value={data.projects.length} label="Proyectos locales"/>
-          <Stat icon={Brain} value={data.memories.length} label="Recuerdos guardados"/>
-          <Stat icon={ListTodo} value={data.tasks.filter(t => !t.completed).length} label="Tareas pendientes"/>
-          <Stat icon={Smartphone} value={allInstallable.length} label="Apps Android"/>
-        </div>
-        <div className="two-col">
-          <Pane title="Proyectos recientes" icon={FolderOpen} extra={<button className="link-button" onClick={() => navigate("Proyectos")}>Ver todos <ChevronRight size={14}/></button>}>
-            {data.projects.length ? data.projects.slice(0,4).map(p => <button className="list-row clickable" key={p.id} onClick={() => { selectProject(p.id); navigate("Proyectos"); }}><span className="tile-icon"><FolderOpen size={19}/></span><span className="grow"><strong>{p.name}</strong><small>{kindLabel[p.kind]} · {p.framework}</small></span><ChevronRight size={17}/></button>) :
-              <div className="small-empty">Aún no has agregado carpetas. Elige «Abrir proyecto» para comenzar.</div>}
-          </Pane>
-          <Pane title="Continuar donde lo dejaste" icon={Play}>
-            {project ? <div className="continue-card"><span className="muted">Proyecto actual</span><strong>{project.name}</strong><p>Recupera tus notas, referencias y tareas guardadas.</p><Action onClick={() => navigate("Chat IA")} icon={Play}>Continuar proyecto</Action></div> :
-              <div className="small-empty">Al seleccionar un proyecto aparecerá aquí su último estado local.</div>}
-            <div className="mini-feature"><CheckCircle2 size={16}/> Sin envío automático a proveedores de IA.</div>
-          </Pane>
-        </div>
-        <Pane title="Accesos rápidos" icon={Zap}><div className="shortcut-grid">
-          {[{title:"Memoria",icon:Brain},{title:"Mapa",icon:Network},{title:"Diagnóstico",icon:Activity},{title:"Instaladores",icon:Smartphone}].map(item => {
-            const Icon = item.icon; return <button key={item.title} className="shortcut" onClick={() => navigate(item.title as Section)}><Icon size={21}/><span>{item.title}</span></button>;
-          })}
-        </div></Pane>
-      </>;
-      inspector = <>
-        <Pane title="Estado del Hub" icon={Leaf}>
-          <div className="label-line"><span>Interfaz</span><b className="tag success">Preparada</b></div>
-          <div className="label-line"><span>Modo</span><b>{data.settings.performance === "eco" ? "Económico" : "Equilibrado"}</b></div>
-          <div className="label-line"><span>Memoria</span><b>Local</b></div>
-          <div className="label-line"><span>Conexiones IA</span><b className="tag warning">Pendientes</b></div>
-        </Pane>
-        <Pane title="Actividad reciente" icon={History}>
-          {data.activities.slice(0,5).length ? data.activities.slice(0,5).map(a => <div className="timeline-item" key={a.id}><span className="timeline-bullet"/><div><strong>{a.text}</strong><small>{at(a.createdAt)}</small></div></div>) : <p className="muted">La actividad aparecerá al abrir un proyecto o guardar contexto.</p>}
-        </Pane>
-        <Pane title="Fase actual" icon={Info}><p className="muted">Base local de escritorio. No hay modelos de IA conectados ni compilaciones automáticas todavía.</p></Pane>
-      </>;
-      break;
-
     case "Proyectos":
       main = <>
         <ViewTitle title="Mis proyectos" subtitle="Abre, inspecciona y organiza carpetas reales de tu computadora." icon={FolderOpen}
           actions={<Action icon={FolderPlus} onClick={addProject} disabled={busy}>Abrir carpeta</Action>}/>
+        {project && <div className="project-resume">
+          <div className="grow"><span className="eyebrow"><FolderOpen size={14}/> PROYECTO ACTIVO</span>
+            <strong>{project.name}</strong>
+            <small>{memories.length} recuerdos · {tasks.filter(t=>!t.completed).length} tareas pendientes · {messages.length} instrucciones guardadas</small>
+          </div>
+          <div className="button-row">
+            <Action icon={MessageSquare} onClick={() => openAssistant("ia")}>Abrir asistente</Action>
+            <Action icon={Brain} secondary onClick={() => openAssistant("contexto")}>Ver contexto</Action>
+          </div>
+        </div>
         <div className="filter-strip"><span className="tag">Todos ({data.projects.length})</span><span>Web · Android · Escritorio · IA</span><span className="filter-right">Solo proyectos elegidos por ti</span></div>
         <div className="project-grid">
           {data.projects.filter(p => (p.name + p.framework + p.kind).toLowerCase().includes(query.toLowerCase())).map(p =>
@@ -166,38 +137,6 @@ export function WorkspaceView(props: Props) {
         </div>
         {!data.projects.length && <Empty title="Tus proyectos aparecerán aquí" message="Selecciona una carpeta existente; AI Code Hub inspecciona su estructura sin modificar sus archivos." button={<Action icon={FolderPlus} onClick={addProject}>Abrir proyecto local</Action>}/>}
         {!!query && !!data.projects.length && !data.projects.some(p => (p.name+p.framework+p.kind).toLowerCase().includes(query.toLowerCase())) && <Empty title="Sin resultados" message="Prueba con otro nombre de proyecto."/>}
-      </>;
-      inspector = <>
-        <Pane title="Proyecto seleccionado" icon={FolderOpen}>
-          {project ? <><h3 className="project-side-name">{project.name}</h3><div className="label-line"><span>Tipo</span><b>{kindLabel[project.kind]}</b></div><div className="label-line"><span>Archivos visibles</span><b>{project.fileCount}</b></div><div className="label-line"><span>Git local</span><b>{project.hasGit ? "Sí" : "No"}</b></div><p className="path-line">{project.path}</p></> : <p className="muted">Ningún proyecto seleccionado.</p>}
-        </Pane>
-        <Pane title="Acciones" icon={Zap}>
-          <div className="stack"><Action secondary icon={MessageSquare} onClick={() => navigate("Chat IA")}>Abrir chat</Action><Action secondary icon={Brain} onClick={() => navigate("Memoria")}>Abrir memoria</Action><Action secondary icon={Network} onClick={() => navigate("Mapa")}>Ver estructura</Action></div>
-        </Pane>
-      </>;
-      break;
-
-    case "Chat IA":
-      main = <>
-        <ViewTitle title="Chat con IA" subtitle="Elige un agente y conserva instrucciones por proyecto sin perder contexto." icon={MessageSquare}/>
-        <div className="context-bar"><Brain size={18}/><strong>Contexto local</strong><span>{memories.length} recuerdos</span><span>{tasks.filter(t => !t.completed).length} pendientes</span><span>{references.length} referencias</span><Action secondary icon={ChevronRight} onClick={() => navigate("Memoria")}>Ver memoria</Action></div>
-        <div className="agent-cards">
-          {(["Codex","Gemini","OpenCode"] as Agent[]).map(name => <button key={name} className={`agent-card ${agent === name ? "active" : ""}`} onClick={() => setAgent(name)}><Code2 size={20}/><strong>{name}</strong><small>Conexión pendiente</small></button>)}
-        </div>
-        {checkProject(<>
-          <Pane title="Sesión de trabajo (notas locales)" icon={BookOpen} className="conversation-panel">
-            {messages.length ? [...messages].reverse().map(m => <div className="chat-bubble" key={m.id}><div className="chat-label"><strong>Tu instrucción</strong><small>{m.agent} · {at(m.createdAt)}</small></div><p>{m.text}</p></div>) : <div className="chat-onboarding"><MessageSquare size={28}/><h3>Prepara tu próxima tarea</h3><p>Las instrucciones se guardan localmente; no se envían a ningún modelo hasta configurar las conexiones oficiales.</p></div>}
-          </Pane>
-          <form className="composer" onSubmit={e => {e.preventDefault(); addMessage(chatDraft); setChatDraft("");}}>
-            <textarea value={chatDraft} onChange={e => setChatDraft(e.target.value)} placeholder={`Escribe una instrucción para ${agent}...`} rows={3}/>
-            <div className="composer-footer"><span><ShieldCheck size={14}/> Se guarda localmente (sin gastar tokens)</span><Action icon={Save} disabled={!chatDraft.trim()}>Guardar instrucción</Action></div>
-          </form>
-        </>)}
-      </>;
-      inspector = <>
-        <Pane title="Agente seleccionado" icon={Code2}><strong className="block-title">{agent}</strong><p className="muted">La conexión real con la herramienta oficial se habilitará en una fase posterior.</p><span className="tag warning">Sin autenticar</span></Pane>
-        <Pane title="Contexto disponible" icon={Brain}><div className="label-line"><span>Memoria</span><b>{memories.length}</b></div><div className="label-line"><span>Archivos detectados</span><b>{project?.fileCount || 0}</b></div><div className="label-line"><span>Referencias</span><b>{references.length}</b></div><p className="muted">El traspaso selectivo de contexto se implementará al conectar agentes.</p></Pane>
-        <Pane title="Código opcional" icon={Code2}><p className="muted">Abre Mapa para inspeccionar los archivos sin activar un editor permanente.</p><Action secondary icon={FolderOpen} onClick={() => navigate("Mapa")}>Explorar archivos</Action></Pane>
       </>;
       break;
 
@@ -225,11 +164,6 @@ export function WorkspaceView(props: Props) {
           </div>
         </>)}
       </>;
-      inspector = <>
-        <Pane title="Flujo creativo" icon={Sparkles}><div className="steps"><p><b>1</b> Guardar enlaces y capturas</p><p><b>2</b> Analizar estilos (pendiente)</p><p><b>3</b> Elegir qué adaptar</p><p><b>4</b> Revisar antes de aplicar</p></div></Pane>
-        <Pane title="Respeto al diseño original" icon={ShieldCheck}><p className="muted">Se propondrán estilos originales inspirados en referencias, sin copiar páginas completas.</p></Pane>
-        <Pane title="Estado" icon={Info}><span className="tag warning">Análisis por IA no conectado</span><p className="muted">Los enlaces privados o restringidos pueden requerir una captura proporcionada por el usuario.</p></Pane>
-      </>;
       break;
 
     case "Memoria":
@@ -245,12 +179,38 @@ export function WorkspaceView(props: Props) {
           <Pane title="Recuerdos guardados" icon={BookOpen}>
             {memories.length ? memories.map(m => <div className="memory-row" key={m.id}><span className="tag">{m.kind}</span><span className="grow">{m.text}</span><small>{at(m.createdAt)}</small><button className="icon-button danger" onClick={() => deleteMemory(m.id)} title="Eliminar recuerdo"><Trash2 size={16}/></button></div>) : <div className="small-empty">Todavía no hay recuerdos. Guarda una regla o decisión del proyecto.</div>}
           </Pane>
+          <Pane title="Tareas pendientes" icon={ListTodo}>
+            <form className="input-row" onSubmit={e => { e.preventDefault(); if(taskDraft.trim()){addTask(taskDraft); setTaskDraft("");}}}>
+              <input aria-label="Nueva tarea" placeholder="Ejemplo: Probar notificaciones en Android" value={taskDraft} onChange={e => setTaskDraft(e.target.value)}/>
+              <Action icon={Plus} disabled={!taskDraft.trim()}>Agregar</Action>
+            </form>
+            <div className="task-items">
+              {tasks.length ? tasks.map(task => <label className="task-item" key={task.id}>
+                <input type="checkbox" checked={task.completed} onChange={() => toggleTask(task.id)}/>
+                <span className={task.completed ? "task-done" : ""}>{task.text}</span>
+              </label>) : <p className="muted">No se han registrado tareas para este proyecto.</p>}
+            </div>
+          </Pane>
+          <Pane title="Preparar contexto optimizado" icon={Leaf}>
+            <div className="input-row">
+              <input aria-label="Qué quieres hacer" placeholder="Describe qué quieres mejorar o continuar..." value={contextRequest} onChange={e => setContextRequest(e.target.value)}/>
+              <select aria-label="Nivel de contexto" value={contextMode} onChange={e => setContextMode(e.target.value as ContextMode)}>
+                <option value="economico">Económico</option><option value="equilibrado">Equilibrado</option><option value="profundo">Profundo</option>
+              </select>
+            </div>
+            {preparedContext && <>
+              <div className="context-summary">
+                <span>≈ {preparedContext.approxTokens} tokens de entrada <small>(estimación por caracteres)</small></span>
+                <span>{preparedContext.included.rules} reglas · {preparedContext.included.memories} recuerdos · {preparedContext.included.files} rutas</span>
+              </div>
+              <details className="context-output"><summary>Ver contexto preparado</summary>
+                <textarea readOnly rows={11} value={preparedContext.text} aria-label="Contexto generado"/>
+              </details>
+              <div className="button-row"><Action icon={Copy} onClick={() => copyContext(contextRequest)}>Copiar contexto</Action></div>
+              {preparedContext.warnings.map(w => <p className="muted" key={w}><Info size={13} className="inline-icon"/> {w}</p>)}
+            </>}
+          </Pane>
         </>)}
-      </>;
-      inspector = <>
-        <Pane title="Ahorro de contexto" icon={Leaf}><p>Modo <b>{data.settings.performance === "eco" ? "económico" : "equilibrado"}</b></p><p className="muted">En fases posteriores, el motor recuperará solo los recuerdos y archivos relevantes. No se muestran porcentajes de ahorro sin medición real.</p></Pane>
-        <Pane title="Almacenamiento" icon={Database}><p className="muted">Fase 1: datos del Hub en el almacenamiento local de la WebView. La migración a SQLite se hará en Fase 2.</p><Action secondary icon={Download} onClick={exportData}>Exportar respaldo</Action></Pane>
-        <Pane title="Reglas vigentes" icon={ShieldCheck}><strong>{memories.filter(m => m.kind === "regla").length} reglas registradas</strong><p className="muted">Las reglas se mantendrán separadas de notas pasajeras.</p></Pane>
       </>;
       break;
 
@@ -272,10 +232,6 @@ export function WorkspaceView(props: Props) {
           </div></Pane>
         </>)}
       </>;
-      inspector = <>
-        <Pane title="Arquitectura detectada" icon={Layers}>{project ? <><div className="label-line"><span>Tipo</span><b>{kindLabel[project.kind]}</b></div><div className="label-line"><span>Tecnología</span><b>{project.framework}</b></div><div className="label-line"><span>Git</span><b>{project.hasGit ? "Detectado" : "No detectado"}</b></div></> : <p className="muted">Abre un proyecto para inspeccionarlo.</p>}</Pane>
-        <Pane title="Sobre el mapa" icon={Info}><p className="muted">Esta primera versión muestra el sistema de archivos real. La detección de dependencias, imports y flujo de datos será una evolución posterior.</p></Pane>
-      </>;
       break;
 
     case "Diagnóstico":
@@ -293,7 +249,6 @@ export function WorkspaceView(props: Props) {
           <Pane title="Recomendaciones" icon={Zap}><p className="muted">Cuando incorporemos ejecutores seguros, podrás compilar, analizar dependencias y ejecutar pruebas desde botones sin terminal visible.</p></Pane>
         </>)}
       </>;
-      inspector = <><Pane title="Informe de diagnóstico" icon={Activity}><p className="muted">Los datos anteriores provienen de la lectura de carpetas. No existe una nota de salud artificial.</p></Pane><Pane title="Siguiente fase" icon={ShieldCheck}><p className="muted">Agregar analizadores reales por tecnología, con permisos, registros y resultados reproducibles.</p></Pane></>;
       break;
 
     case "Versiones":
@@ -306,7 +261,6 @@ export function WorkspaceView(props: Props) {
           <Pane title="Control de versiones Git" icon={GitBranch}><p className="muted">{project?.hasGit ? "Se detectó una carpeta .git. La lectura de commits y los puntos de restauración aún no están integrados." : "No se encontró .git en la carpeta raíz. Puedes inicializar Git externamente por ahora."}</p><span className="tag warning">Restauración aún no disponible</span></Pane>
         </>)}
       </>;
-      inspector = <><Pane title="Protección del proyecto" icon={ShieldCheck}><p className="muted">No se modificarán archivos ni se creará una versión sin tu confirmación.</p></Pane><Pane title="Plan de versiones" icon={History}><div className="steps"><p><b>1</b> Leer commits Git</p><p><b>2</b> Comparar diferencias</p><p><b>3</b> Crear puntos seguros</p><p><b>4</b> Restaurar con aprobación</p></div></Pane></>;
       break;
 
     case "Instaladores":
@@ -323,7 +277,6 @@ export function WorkspaceView(props: Props) {
           </Pane>
         </> : <Empty title="Sin proyectos Android" message="Para instalar una aplicación, abre una carpeta Android/Gradle. Los proyectos web quedan excluidos automáticamente." button={<Action icon={FolderPlus} onClick={addProject}>Agregar proyecto Android</Action>}/>}
       </>;
-      inspector = <><Pane title="Compatibilidad" icon={ShieldCheck}><div className="label-line"><span>Proyectos Android</span><b>{allInstallable.length}</b></div><div className="label-line"><span>Proyecto elegido</span><b>{installProject?.name || "Ninguno"}</b></div><span className="tag warning">SDK / ADB aún no integrado</span></Pane><Pane title="Instalación sin tokens" icon={Leaf}><p className="muted">La próxima integración usará herramientas Android locales y no requerirá enviar prompts a una IA.</p></Pane></>;
       break;
 
     case "Automatizaciones":
@@ -344,7 +297,6 @@ export function WorkspaceView(props: Props) {
           </Pane>
         </>)}
       </>;
-      inspector = <><Pane title="Estado del automatizador" icon={Info}><span className="tag warning">Motor pendiente</span><p className="muted">Guardar un borrador no lo programa ni ejecuta. La ejecución periódica se añadirá con controles de permisos.</p></Pane><Pane title="Ejecución segura" icon={ShieldCheck}><p className="muted">Los scripts y procesos necesitarán validación, registro de resultados y aprobación para operaciones delicadas.</p></Pane></>;
       break;
 
     case "Ajustes":
@@ -358,12 +310,8 @@ export function WorkspaceView(props: Props) {
         <Pane title="Privacidad y respaldo" icon={LockKeyhole}><div className="settings-line"><div><strong>Exportar datos locales</strong><small>Descarga JSON con proyectos registrados, notas y referencias</small></div><Action secondary icon={Download} onClick={exportData}>Exportar</Action></div><p className="muted">No se guardan claves de acceso; los archivos de los proyectos permanecen en sus carpetas originales.</p></Pane>
         <Pane title="Agentes de programación" icon={Code2}><div className="agent-cards">{(["Codex","Gemini","OpenCode"] as Agent[]).map(name=><div className="agent-card" key={name}><Code2 size={20}/><strong>{name}</strong><small>Por conectar</small></div>)}</div></Pane>
       </>;
-      inspector = <><Pane title="Acerca de AI Code Hub" icon={Info}><h3>AI Code Hub v0.1.0</h3><p className="muted">Primera base funcional, local y modular para Windows con Tauri 2.</p><div className="label-line"><span>Motor de escritorio</span><b>Tauri 2</b></div><div className="label-line"><span>Base en la nube</span><b>No</b></div></Pane><Pane title="Ligereza" icon={Cpu}><p className="muted">No hay IA local ni indexación permanente. Las funciones pesadas se activarán solo bajo demanda.</p></Pane></>;
       break;
   }
 
-  return <>
-    <main className="workspace" aria-label={section}>{main}</main>
-    {rightPanel && <aside className="inspector" aria-label="Información contextual">{inspector}</aside>}
-  </>;
+  return <main className="workspace" aria-label={section}>{main}</main>;
 }

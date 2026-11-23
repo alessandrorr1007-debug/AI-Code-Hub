@@ -1,3 +1,4 @@
+import { isTauri, invoke } from "@tauri-apps/api/core";
 import type { HubData } from "./types";
 const KEY = "ai-code-hub:workspace:v1";
 export const DEFAULT_DATA: HubData = {
@@ -33,4 +34,39 @@ export function exportWorkspace(data: HubData): void {
   link.download = "ai-code-hub-workspace.json";
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Desktop: SQLite is the authoritative local store.
+ * When upgrading from v0.1, copy existing WebView data to SQLite exactly once.
+ * Browser preview keeps its own localStorage store; it never connects to a server.
+ */
+export async function initializeWorkspace(): Promise<HubData> {
+  const legacy = loadWorkspace();
+  if (!isTauri()) return legacy;
+  const raw = await invoke<string | null>("load_workspace");
+  if (raw !== null) {
+    let parsed: HubData;
+    try { parsed = JSON.parse(raw) as HubData; }
+    catch { throw new Error("La base SQLite contiene un estado inválido: exporta y revisa los datos antes de continuar."); }
+    if (parsed.schema !== 1 || !Array.isArray(parsed.projects)) {
+      throw new Error("La versión de la memoria SQLite no es compatible; no se sobrescribirán los datos.");
+    }
+    return { ...DEFAULT_DATA, ...parsed, settings: { ...DEFAULT_DATA.settings, ...parsed.settings } };
+  }
+  // No prior SQLite state: migrate the complete previous workspace.
+  await invoke("save_workspace", { data: JSON.stringify(legacy) });
+  return legacy;
+}
+let sqliteWriteQueue: Promise<void> = Promise.resolve();
+export async function persistWorkspace(data: HubData): Promise<void> {
+  if (isTauri()) {
+    const payload = JSON.stringify(data);
+    // Mantener el orden de escrituras cuando el usuario hace varios cambios seguidos.
+    sqliteWriteQueue = sqliteWriteQueue.catch(() => undefined)
+      .then(() => invoke<void>("save_workspace", { data: payload }));
+    await sqliteWriteQueue;
+  }
+  // Una copia local para migraciones y recuperación, nunca subida a Git.
+  saveWorkspace(data);
 }
