@@ -1,6 +1,6 @@
 export type ProjectKind = "android" | "web" | "desktop" | "python" | "unknown";
 export type Section =
-  | "Inicio" | "Proyectos" | "Chat IA" | "Estudio Creativo" | "Memoria"
+  | "Proyectos" | "Estudio Creativo" | "Memoria"
   | "Mapa" | "Diagnóstico" | "Versiones" | "Instaladores" | "Automatizaciones" | "Ajustes";
 export type Agent = "Codex" | "Gemini" | "OpenCode";
 export type MemoryKind = "decision" | "regla" | "contexto";

@@ -4,7 +4,9 @@
 
 ## Fase 1 · Lo que ya funciona
 
-- Navegación en **11 secciones** con estructura fija: Inicio, Proyectos, Chat IA, Estudio Creativo, Memoria, Mapa, Diagnóstico, Versiones, Instaladores, Automatizaciones y Ajustes.
+- **Proyectos es la pantalla inicial**. Menú izquierdo con 9 apartados: Proyectos, Estudio Creativo, Memoria, Mapa, Diagnóstico, Versiones, Instaladores, Automatizaciones y Ajustes.
+- **Asistente IA lateral derecho**, ocultable y disponible desde las 9 secciones; dos pestañas IA / Contexto.
+- Codex, Gemini y OpenCode se seleccionan dentro del panel IA; los mensajes se guardan como instrucciones locales y las conexiones reales siguen pendientes.
 - **Abrir carpetas locales** mediante el diálogo nativo de Windows y detectar de forma no destructiva Android/Gradle, web, Tauri y Python.
 - Mostrar un mapa inicial de carpetas y archivos, y un diagnóstico estructural básico (sin ejecutar scripts).
 - Guardar **notas de trabajo**, reglas, decisiones, tareas y enlaces/capturas de referencia por proyecto.
@@ -71,7 +73,8 @@ Configurado para generar un instalador Windows NSIS. También existe un flujo ma
 ```text
 src/
   App.tsx             # Shell, navegación y coordinación de estado
-  sections.tsx        # 11 vistas con acciones locales reales o límites explícitos
+  sections.tsx        # 9 vistas con acciones locales reales o límites explícitos
+  AssistantPanel.tsx  # Panel derecho permanente: IA y Contexto
   styles.css          # Diseño compartido compacto / modo ligero
   types.ts            # Contratos y tipado
   storage.ts          # SQLite en Tauri, migración y respaldo WebView
@@ -85,7 +88,7 @@ src-tauri/
   icons/              # Iconos Windows
 docs/
   ROADMAP.md          # Plan incremental
-  UI_SPEC.md          # Contrato fijo de las 11 vistas
+  UI_SPEC.md          # Contrato de las 9 vistas + panel derecho
 .github/workflows/
   frontend.yml        # TypeScript y build del frontend
   windows-installer.yml # Build de Windows manual
@@ -108,3 +111,7 @@ En **Memoria** puedes registrar decisiones, reglas críticas y tareas. La herram
 La base de escritorio utiliza SQLite dentro del directorio privado de datos de Tauri. La primera vez se importa el antiguo estado local de la WebView si la base todavía no existe. La vista web mantiene su almacenamiento local de desarrollo.
 
 Pruebas locales del algoritmo: `npm test`. **No se necesitan GitHub Actions.**
+
+## Distribución personal del escritorio
+
+El acceso al Hub comienza en **Proyectos**, sin pantalla Inicio. **Chat IA no tiene una ruta independiente**: se abre desde el botón superior «Asistente IA» o desde la tarjeta de proyecto activo. La zona derecha mantiene dos pestañas: **IA** (instrucciones y selección de agente) y **Contexto** (recuerdos, pendientes, rutas y resumen copiable). Todo es local y los asistentes aún no responden: ninguna nota se envía a la red. En pantallas pequeñas el asistente se abre como panel superpuesto.
