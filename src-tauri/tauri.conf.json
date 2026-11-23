@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "AI Code Hub",
+  "version": "0.1.0",
+  "identifier": "pe.aicodehub.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "AI Code Hub",
+        "width": 1450,
+        "height": 890,
+        "minWidth": 1040,
+        "minHeight": 680,
+        "backgroundColor": "#0b1020"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "msi"
+    ],
+    "shortDescription": "Entorno de desarrollo con IA",
+    "category": "DeveloperTool"
+  }
+}
