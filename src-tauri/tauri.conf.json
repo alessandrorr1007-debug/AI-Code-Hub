@@ -27,10 +27,13 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis",
-      "msi"
+      "nsis"
     ],
     "shortDescription": "Entorno de desarrollo con IA",
-    "category": "DeveloperTool"
+    "category": "DeveloperTool",
+    "icon": [
+      "icons/32x32.png",
+      "icons/icon.ico"
+    ]
   }
 }

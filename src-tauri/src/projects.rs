@@ -47,7 +47,7 @@ fn scan(root: &Path, dir: &Path, depth: usize, out: &mut Vec<ProjectFile>) {
     entries.sort();
     for entry in entries {
         if out.len() >= 180 { break; }
-        let name = entry.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = entry.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
         if [".git","node_modules","target","dist",".next","build",".gradle",".idea",".venv","venv"].contains(&name.as_str()) { continue; }
         let is_dir = entry.is_dir();
         if let Ok(rel) = entry.strip_prefix(root) {
